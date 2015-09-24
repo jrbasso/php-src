@@ -3631,6 +3631,7 @@ PHP_MINIT_FUNCTION(basic) /* {{{ */
 	BASIC_MINIT_SUBMODULE(standard_filters)
 	BASIC_MINIT_SUBMODULE(user_filters)
 	BASIC_MINIT_SUBMODULE(password)
+	BASIC_MINIT_SUBMODULE(var)
 
 #if defined(HAVE_LOCALECONV) && defined(ZTS)
 	BASIC_MINIT_SUBMODULE(localeconv)

@@ -35,6 +35,31 @@
 #define COMMON (is_ref ? "&" : "")
 /* }}} */
 
+static zend_class_entry *php_var_export_serializable_ce;
+
+/* {{{ VarExportSerializable methods */
+ZEND_BEGIN_ARG_INFO(var_export_serialize_arginfo, 0)
+	/* No arguments */
+ZEND_END_ARG_INFO();
+
+static const zend_function_entry var_export_serializable_interface[] = {
+	PHP_ABSTRACT_ME(VarExportSerializable, varExportSerialize, var_export_serialize_arginfo)
+	PHP_FE_END
+};
+/* }}} */
+
+PHP_MINIT_FUNCTION(var) /* {{{ */
+{
+	zend_class_entry ce;
+
+	INIT_CLASS_ENTRY(ce, "VarExportSerializable", var_export_serializable_interface);
+	php_var_export_serializable_ce = zend_register_internal_interface(&ce);
+
+	return SUCCESS;
+}
+/* }}} */
+
+
 static uint32_t zend_hash_recalc_elements(HashTable *ht) /* {{{ */
 {
 	zval *val;
