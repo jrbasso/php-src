@@ -598,6 +598,9 @@ again:
 				if (php_var_export_fields(struc, filter) != SUCCESS) {
 					smart_str_appendl(buf, "NULL", 4);
 					zend_error(E_WARNING, "%s::varExportSerialize() did not return an array", ZSTR_VAL(ce->name));
+					zend_hash_destroy(filter);
+					efree(filter);
+					filter = NULL;
 					return;
 				}
 			} else {
