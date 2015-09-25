@@ -497,15 +497,41 @@ static void php_object_element_export(zval *zv, zend_ulong index, zend_string *k
 }
 /* }}} */
 
+static int php_var_export_fields(zval *val, HashTable *dest) /* {{{ */
+{
+	zval retval, fname;
+
+	ZVAL_STRING(&fname, "varExportSerialize");
+
+	if (FAILURE == call_user_function_ex(EG(function_table), val, &fname, &retval, 0, NULL, 1, NULL) || Z_TYPE(retval) != IS_ARRAY) {
+		zval_ptr_dtor(&fname);
+		return FAILURE;
+	}
+
+	if (EG(exception)) {
+		/* Error already raised */
+		zval_ptr_dtor(&retval);
+		zval_ptr_dtor(&fname);
+		return FAILURE;
+	}
+
+	zend_hash_copy(dest, Z_ARRVAL(retval), NULL);
+	zval_ptr_dtor(&retval);
+	zval_ptr_dtor(&fname);
+	return SUCCESS;
+}
+/* }}} */
+
 PHPAPI void php_var_export_ex(zval *struc, int level, smart_str *buf) /* {{{ */
 {
-	HashTable *myht;
+	HashTable *myht, *filter = NULL;
 	char *tmp_str;
 	size_t tmp_len;
 	zend_string *ztmp, *ztmp2;
 	zend_ulong index;
 	zend_string *key;
 	zval *val;
+	zend_class_entry *ce;
 
 again:
 	switch (Z_TYPE_P(struc)) {
@@ -564,11 +590,29 @@ again:
 			break;
 
 		case IS_OBJECT:
+			ce = Z_OBJCE_P(struc);
+			if (instanceof_function(ce, php_var_export_serializable_ce)) {
+				ALLOC_HASHTABLE(filter);
+				zend_hash_init(filter, 0, NULL, ZVAL_PTR_DTOR, 0);
+
+				if (php_var_export_fields(struc, filter) != SUCCESS) {
+					smart_str_appendl(buf, "NULL", 4);
+					zend_error(E_WARNING, "%s::varExportSerialize() did not return an array", ZSTR_VAL(ce->name));
+					return;
+				}
+			} else {
+				filter = NULL;
+			}
 			myht = Z_OBJPROP_P(struc);
 			if (myht) {
 				if (myht->u.v.nApplyCount > 0) {
 					smart_str_appendl(buf, "NULL", 4);
 					zend_error(E_WARNING, "var_export does not handle circular references");
+					if (filter != NULL) {
+						zend_hash_destroy(filter);
+						efree(filter);
+						filter = NULL;
+					}
 					return;
 				} else {
 					myht->u.v.nApplyCount++;
@@ -579,12 +623,26 @@ again:
 				buffer_append_spaces(buf, level - 1);
 			}
 
-			smart_str_append(buf, Z_OBJCE_P(struc)->name);
+			smart_str_append(buf, ce->name);
 			smart_str_appendl(buf, "::__set_state(array(\n", 21);
 
 			if (myht) {
 				ZEND_HASH_FOREACH_KEY_VAL_IND(myht, index, key, val) {
-					php_object_element_export(val, index, key, level, buf);
+					if (filter) {
+						zval *val2;
+
+						ZEND_HASH_FOREACH_VAL(filter, val2) {
+							if (Z_TYPE_P(val2) != IS_STRING) {
+								convert_to_string(val2);
+							}
+							if (memcmp(ZSTR_VAL(key), Z_STRVAL_P(val2), ZSTR_LEN(key)) == 0) {
+								php_object_element_export(val, index, key, level, buf);
+								break;
+							}
+						} ZEND_HASH_FOREACH_END();
+					} else {
+						php_object_element_export(val, index, key, level, buf);
+					}
 				} ZEND_HASH_FOREACH_END();
 				myht->u.v.nApplyCount--;
 			}
@@ -592,6 +650,12 @@ again:
 				buffer_append_spaces(buf, level - 1);
 			}
 			smart_str_appendl(buf, "))", 2);
+
+			if (filter != NULL) {
+				zend_hash_destroy(filter);
+				efree(filter);
+				filter = NULL;
+			}
 
 			break;
 		case IS_REFERENCE:
