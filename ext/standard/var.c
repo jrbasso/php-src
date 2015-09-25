@@ -503,13 +503,13 @@ static int php_var_export_fields(zval *val, HashTable *dest) /* {{{ */
 
 	ZVAL_STRING(&fname, "varExportSerialize");
 
-	if (FAILURE == call_user_function_ex(EG(function_table), val, &fname, &retval, 0, NULL, 1, NULL) || Z_TYPE(retval) != IS_ARRAY) {
+	if (FAILURE == call_user_function_ex(EG(function_table), val, &fname, &retval, 0, NULL, 1, NULL)) {
 		zval_ptr_dtor(&fname);
 		return FAILURE;
 	}
 
-	if (EG(exception)) {
-		/* Error already raised */
+	if (EG(exception) || Z_TYPE(retval) != IS_ARRAY) {
+		/* Error already raised or bad response */
 		zval_ptr_dtor(&retval);
 		zval_ptr_dtor(&fname);
 		return FAILURE;
