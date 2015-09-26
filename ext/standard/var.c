@@ -503,7 +503,7 @@ static int php_var_export_fields(zval *val, HashTable *dest) /* {{{ */
 
 	ZVAL_STRING(&fname, "varExportSerialize");
 
-	if (FAILURE == call_user_function_ex(EG(function_table), val, &fname, &retval, 0, NULL, 1, NULL)) {
+	if (FAILURE == call_user_function_ex(NULL, val, &fname, &retval, 0, NULL, 1, NULL) || Z_TYPE(retval) == IS_UNDEF) {
 		zval_ptr_dtor(&fname);
 		return FAILURE;
 	}
